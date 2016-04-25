@@ -1,9 +1,9 @@
 import StartApp.Simple exposing (start)
 
---import SewingKit.PopUpingColorPicker
+import Html exposing (..)
+
 import SewingKit.Svg exposing (..)
 
---import SewingKit.NeedleAndThreadList
 --import SewingKit.Color exposing (..)
 --import SewingKit.StitchList exposing (..)
 import SewingKit.Pattern exposing (..)
@@ -14,3 +14,10 @@ import SewingKit.Pattern exposing (..)
 
 main = start { model = init, update = update, view = view }
 
+
+sid = ChildId 3 (Id 0)
+m = init
+--main =
+--  div []
+--  [ text <| toString <| stitchById sid m.patternZipper
+--  ]

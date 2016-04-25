@@ -2,6 +2,7 @@ module SewingKit.Pattern.SquareList
   ( SquareList
   , init
   , xs, ys, width, height, positions
+  , minX, minY, maxX, maxY
   , expand, shrink
   , Action(..), update
   ) where
@@ -22,7 +23,7 @@ type alias SquareList content =
 
 init : SquareList content
 init =
-  expand 10 10 []
+  expand 5 4 []
 
 
 -- Action

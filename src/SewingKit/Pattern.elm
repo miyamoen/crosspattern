@@ -1,5 +1,4 @@
-module SewingKit.Pattern
-  ( Pattern, cloth, leaf ) where
+module SewingKit.Pattern where
 
 import Html exposing (..)
 import Html.Attributes exposing (style)
@@ -11,17 +10,17 @@ import Array exposing (indexedMap, toList)
 import MultiwayTree exposing (Tree(..))
 import MultiwayTreeZipper as Zipper exposing (Zipper)
 
-import SewingKit.Svg exposing (..)
+import SewingKit.Svg as MySvg exposing (..)
 import SewingKit.Stitch as Stitch
 import SewingKit.StitchList as StitchList
 import SewingKit.Pattern.SquareList as SquareList
+import SewingKit.Pattern.Square as Square
 
 (=>) = (,)
 (?) = flip Maybe.withDefault
 (?>) = Maybe.andThen
 (?.) = flip Maybe.map
 
-(!.>) = flip List.map
 
 
 type alias StitchList =
@@ -42,7 +41,7 @@ type alias Square =
 
 type alias Model =
   { patternZipper : Zipper Pattern
-  , heldStitch : HeldStitch
+  , holding : Holding
   , hasGrid : Bool
   }
 
@@ -56,7 +55,7 @@ type StitchId
   | ChildId Int StitchId
 
 
-type HeldStitch
+type Holding
   = HNothing
   | HStitch Int
   --| HStamp Int Stamp
@@ -66,7 +65,7 @@ init : Model
 init =
   { patternZipper =
     ( Tree ( Root SquareList.init StitchList.init ) [], [] )
-  , heldStitch = HStitch 0
+  , holding = HStitch 0
   , hasGrid = True
   }
 
@@ -74,7 +73,7 @@ init =
 type Action
   = GoToRoot
   | ModifyStitchList StitchList.Action
-  | ModifySquareList SquareList.Action
+  | ModifySquareList (SquareList.Action StitchId)
   | HoldStitch Int
   --| HoldStamp Int Stamp
   | Unhold
@@ -84,32 +83,31 @@ type Action
 
 update : Action -> Model -> Model
 update action model =
-  GoToRoot ->
-    { model | patternZipper =
-      Zipper.goToRoot model.patternZipper ? model.patternZipper
-    }
+  case action of
+    GoToRoot ->
+      { model | patternZipper = goToRoot model.patternZipper }
 
-  ModifyStitchList sub ->
-    updateStitchList sub model
+    ModifyStitchList sub ->
+      updateStitchList sub model
 
-  ModifySquareList sub ->
-    updateSquareList sub model
+    ModifySquareList sub ->
+      updateSquareList sub model
 
-  HoldStitch id ->
-    { model | heldStitch = HStitch id }
+    HoldStitch id ->
+      { model | holding = HStitch id }
 
-  --HoldStamp id stamp ->
-  --  { model | heldStitch = HStamp id stamp }
+    --HoldStamp id stamp ->
+    --  { model | holding = HStamp id stamp }
 
-  Unhold ->
-    { model | heldStitch = HNothing }
+    Unhold ->
+      { model | holding = HNothing }
 
 
-  SwitchGrid ->
-    { model | hasGrid = not model.hasGrid }
+    SwitchGrid ->
+      { model | hasGrid = not model.hasGrid }
 
-  NoOp ->
-    model
+    NoOp ->
+      model
 
 
 updateStitchList : StitchList.Action -> Model -> Model
@@ -124,7 +122,10 @@ updateStitchList action model =
           Node id sqrs (StitchList.update action stchs)
 
   in
-    { model | Zipper.updateDatum updatePattern patternZipper }
+    { model | patternZipper
+      = Zipper.updateDatum updatePattern model.patternZipper
+      ? model.patternZipper
+    }
 
 
 updateSquareList : SquareList.Action StitchId -> Model -> Model
@@ -139,7 +140,10 @@ updateSquareList action model =
           Node id (SquareList.update action sqrs) stchs
 
   in
-    { model | Zipper.updateDatum updatePattern patternZipper }
+    { model | patternZipper
+      = Zipper.updateDatum updatePattern model.patternZipper
+      ? model.patternZipper
+    }
 
 
 -- Query
@@ -165,12 +169,14 @@ stitchById sid zipper =
     Id id ->
       StitchList.stitch id (stitchList zipper)
 
+    --_ ->
+    --  Nothing
     ChildId id sid' ->
       goToChild id zipper
       ?> stitchById sid'
 
 
-squareList : Zipper Pattern -> SquareList StitchId
+squareList : Zipper Pattern -> SquareList
 squareList zipper =
   case pattern zipper of
     Root s _ ->
@@ -178,6 +184,7 @@ squareList zipper =
 
     Node _ s _ ->
       s
+
 
 -- Pattern Zipper
 
@@ -187,42 +194,74 @@ goToRoot zipper =
 
 
 goToChild : Int -> Zipper Pattern -> Maybe (Zipper Pattern)
-goToChild id ((Tree _ children, _) as zipper)=
-  elemIndex id children
-  ?> (flip Zipper.goToChild) zipper
+goToChild id ((Tree _ children, _) as zipper) =
+  let
+    f (Tree pattern _) =
+      case pattern of
+        Node id _ _ ->
+          Just id
+
+        _ ->
+          Nothing
+  in
+    (List.map f children
+    |> elemIndex (Just id))
+    ?> (flip Zipper.goToChild) zipper
 
 
 
 
 -- View
 
+view : Address Action -> Model -> Html
+view address model =
+  div
+  [ style
+    [ "display" => "flex"
+    , "flex-direction" => "row"
+    ]
+  ]
+  [ viewSquares model
+    (forwardTo address ModifySquareList)
+    (squareList <| goToRoot model.patternZipper)
+  , gridButton address model
+  , holdPanel address model
+  , StitchList.view
+    (forwardTo address ModifyStitchList)
+    (stitchList <| goToRoot model.patternZipper)
+  ]
+
+
+
 -- Square View
 
-viewSquares : Model -> Address SquareList.Action -> SquareList -> Html
+viewSquares : Model -> Address (SquareList.Action StitchId) -> SquareList -> Html
 viewSquares model address sqrs =
   let
     svg =
       SquareList.positions sqrs
-      !.> SquareList.Modify >> forwardTo address
-      |> List.map2 (flip << squareElement model) sqrs
+      |> List.map (forwardTo address << SquareList.Modify)
+      |> List.map2 (flip <| squareElement model) sqrs
       |> Group
       |> MySvg.toSvg []
 
 
     attrs =
     [ viewBox
-      (SquareList.minX - 2) (SquareList.minY - 2)
-      (SquareList.width sqrs + 4) (SquareList.height sqrs + 4)
+      ((SquareList.minX sqrs ? 0) - 2 |> toFloat)
+      ((SquareList.minY sqrs ? 0) - 2 |> toFloat)
+      (SquareList.width sqrs + 4 |> toFloat)
+      (SquareList.height sqrs + 4 |> toFloat)
     , MySvg.width 500
     , MySvg.height 500
     ]
   in
     div
     [ style [] ]
-    [ Svg.svg attrs svg ]
+    [ Svg.svg attrs [ svg ] ]
 
 
-squareElement :  Model -> Address (Square.Action StitchId) -> Square -> Element
+squareElement : Model -> Address (Square.Action StitchId) -> Square -> Element
 squareElement model address sqr =
   let
     x = Square.x sqr |> toFloat
@@ -233,7 +272,7 @@ squareElement model address sqr =
       Square.maybeContent sqr
       ?> (flip stitchById) root
       ?. Stitch.element (x + 0.5) (y + 0.5)
-      ?. \sElm -> Group [ elm, sElm ]
+      ?. (\sElm -> Group [ elm, sElm ])
       ? Group [ elm ]
 
     grid elm =
@@ -245,9 +284,9 @@ squareElement model address sqr =
         elm
 
     action =
-      case model.heldStitch of
+      case model.holding of
         HStitch id ->
-          if Square.maybeContent sqr ?. (!=) (Id id) then
+          if Square.maybeContent sqr ?. (/=) (Id id) ? True then
             Square.Modify (Id id)
 
           else
@@ -265,37 +304,64 @@ squareElement model address sqr =
     |> Clickable (message address action)
 
 
--- HeldStitch View
+-- Holding View
 
 
-
-viewHoldPanel : Address Action -> Model -> Html
-viewHoldPanel address model =
+holdPanel : Address Action -> Model -> Html
+holdPanel address model =
   let
-    sl = stitchList <| goToRoot model.patternZipper
+    stitches = stitchList <| goToRoot model.patternZipper
+
   in
     div
     [ style
       [ "display" => "flex"
       , "flex-flow" => "column wrap"
       , "height" => "500px"
-      , "width" => (w ++ "px")
+      --, "width" => (w ++ "px")
       ]
     ]
-    (toList <| indexedMap (viewHoldPanel address model) model.stitches)
+    (indexedMap (holdPanelButton address model) stitches |> toList)
 
 
-viewHoldPanel : Address Action -> Model -> Int -> Stitch.Model -> Html
-viewHoldPanel address model idx stitch =
-  (if Maybe.map ((==) idx) model.holding ? False then
+holdPanelButton : Address Action -> Model -> Int -> Stitch -> Html
+holdPanelButton address model id stitch =
+  let
+    fillAndAction =
+      case model.holding of
+        HStitch hId ->
+          if id == hId
+            then Fill (Stitch.color stitch)
+            >> Clickable (message address Unhold)
+
+            else Fill Color.white
+            >> Clickable (message address <| HoldStitch id)
+
+        _ ->
+          Fill Color.white
+          >> Clickable (message address <| HoldStitch id)
+
+  in
     Circle 0 0 0.4
-      |> LineStyle (Stitch.color stitch) 0.1
-      |> Fill (Stitch.color stitch)
-      |> Clickable (message address Unhold)
-  else
-    Circle 0 0 0.4
-      |> LineStyle (Stitch.color stitch) 0.1
-      |> Fill Color.white
-      |> Clickable (message address (Hold idx))
-  )
+    |> LineStyle (Stitch.color stitch) 0.1
+    |> fillAndAction
     |> toHtml 1 1 50 50 []
+
+
+gridButton : Address Action -> Model -> Html
+gridButton address model =
+  let
+    color =
+      case model.hasGrid of
+        True ->
+          Color.hsl (degrees 100) 0.85 0.85
+        False ->
+          Color.hsl (degrees 0) 0.85 0.85
+
+  in
+    Circle 0 0 0.45
+      |> Fill color
+      |> Clickable (message address SwitchGrid)
+      |> toHtml 1 1 50 50 []
+
+

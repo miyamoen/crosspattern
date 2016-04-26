@@ -13,8 +13,8 @@ import MultiwayTreeZipper as Zipper exposing (Zipper)
 import SewingKit.Svg as MySvg exposing (..)
 import SewingKit.Stitch as Stitch
 import SewingKit.StitchList as StitchList
-import SewingKit.Pattern.SquareList as SquareList
-import SewingKit.Pattern.Square as Square
+import SewingKit.Pattern.MeshList as MeshList
+import SewingKit.Pattern.Mesh as Mesh
 
 (=>) = (,)
 (?) = flip Maybe.withDefault
@@ -31,12 +31,12 @@ type alias Stitch =
   Stitch.Model
 
 
-type alias SquareList =
-  SquareList.SquareList StitchId
+type alias MeshList =
+  MeshList.MeshList StitchId
 
 
-type alias Square =
-  Square.Square StitchId
+type alias Mesh =
+  Mesh.Mesh StitchId
 
 
 type alias Model =
@@ -46,8 +46,8 @@ type alias Model =
   }
 
 type Pattern
-  = Root SquareList StitchList
-  | Node Int SquareList StitchList
+  = Root MeshList StitchList
+  | Node Int MeshList StitchList
 
 
 type StitchId
@@ -64,7 +64,7 @@ type Holding
 init : Model
 init =
   { patternZipper =
-    ( Tree ( Root SquareList.init StitchList.init ) [], [] )
+    ( Tree ( Root MeshList.init StitchList.init ) [], [] )
   , holding = HStitch 0
   , hasGrid = True
   }
@@ -73,7 +73,7 @@ init =
 type Action
   = GoToRoot
   | ModifyStitchList StitchList.Action
-  | ModifySquareList (SquareList.Action StitchId)
+  | ModifyMeshList (MeshList.Action StitchId)
   | HoldStitch Int
   --| HoldStamp Int Stamp
   | Unhold
@@ -90,8 +90,8 @@ update action model =
     ModifyStitchList sub ->
       updateStitchList sub model
 
-    ModifySquareList sub ->
-      updateSquareList sub model
+    ModifyMeshList sub ->
+      updateMeshList sub model
 
     HoldStitch id ->
       { model | holding = HStitch id }
@@ -128,16 +128,16 @@ updateStitchList action model =
     }
 
 
-updateSquareList : SquareList.Action StitchId -> Model -> Model
-updateSquareList action model =
+updateMeshList : MeshList.Action StitchId -> Model -> Model
+updateMeshList action model =
   let
     updatePattern p =
       case p of
         Root sqrs stchs ->
-          Root (SquareList.update action sqrs) stchs
+          Root (MeshList.update action sqrs) stchs
 
         Node id sqrs stchs ->
-          Node id (SquareList.update action sqrs) stchs
+          Node id (MeshList.update action sqrs) stchs
 
   in
     { model | patternZipper
@@ -176,8 +176,8 @@ stitchById sid zipper =
       ?> stitchById sid'
 
 
-squareList : Zipper Pattern -> SquareList
-squareList zipper =
+meshList : Zipper Pattern -> MeshList
+meshList zipper =
   case pattern zipper of
     Root s _ ->
       s
@@ -221,9 +221,9 @@ view address model =
     , "flex-direction" => "row"
     ]
   ]
-  [ viewSquares model
-    (forwardTo address ModifySquareList)
-    (squareList <| goToRoot model.patternZipper)
+  [ viewMeshs model
+    (forwardTo address ModifyMeshList)
+    (meshList <| goToRoot model.patternZipper)
   , gridButton address model
   , holdPanel address model
   , StitchList.view
@@ -233,25 +233,25 @@ view address model =
 
 
 
--- Square View
+-- Mesh View
 
-viewSquares : Model -> Address (SquareList.Action StitchId) -> SquareList -> Html
-viewSquares model address sqrs =
+viewMeshs : Model -> Address (MeshList.Action StitchId) -> MeshList -> Html
+viewMeshs model address sqrs =
   let
     svg =
-      SquareList.positions sqrs
-      |> List.map (forwardTo address << SquareList.Modify)
-      |> List.map2 (flip <| squareElement model) sqrs
+      MeshList.positions sqrs
+      |> List.map (forwardTo address << MeshList.Modify)
+      |> List.map2 (flip <| meshElement model) sqrs
       |> Group
       |> MySvg.toSvg []
 
 
     attrs =
     [ viewBox
-      ((SquareList.minX sqrs ? 0) - 2 |> toFloat)
-      ((SquareList.minY sqrs ? 0) - 2 |> toFloat)
-      (SquareList.width sqrs + 4 |> toFloat)
-      (SquareList.height sqrs + 4 |> toFloat)
+      ((MeshList.minX sqrs ? 0) - 2 |> toFloat)
+      ((MeshList.minY sqrs ? 0) - 2 |> toFloat)
+      (MeshList.width sqrs + 4 |> toFloat)
+      (MeshList.height sqrs + 4 |> toFloat)
     , MySvg.width 500
     , MySvg.height 500
     ]
@@ -261,15 +261,15 @@ viewSquares model address sqrs =
     [ Svg.svg attrs [ svg ] ]
 
 
-squareElement : Model -> Address (Square.Action StitchId) -> Square -> Element
-squareElement model address sqr =
+meshElement : Model -> Address (Mesh.Action StitchId) -> Mesh -> Element
+meshElement model address sqr =
   let
-    x = Square.x sqr |> toFloat
-    y = Square.y sqr |> toFloat
+    x = Mesh.x sqr |> toFloat
+    y = Mesh.y sqr |> toFloat
     root = goToRoot model.patternZipper
 
     cross elm =
-      Square.maybeContent sqr
+      Mesh.maybeContent sqr
       ?> (flip stitchById) root
       ?. Stitch.element (x + 0.5) (y + 0.5)
       ?. (\sElm -> Group [ elm, sElm ])
@@ -286,18 +286,18 @@ squareElement model address sqr =
     action =
       case model.holding of
         HStitch id ->
-          if Square.maybeContent sqr ?. (/=) (Id id) ? True then
-            Square.Modify (Id id)
+          if Mesh.maybeContent sqr ?. (/=) (Id id) ? True then
+            Mesh.Modify (Id id)
 
           else
-            Square.Empty
+            Mesh.Empty
 
         HNothing ->
-          Square.Empty
+          Mesh.Empty
 
 
   in
-    Square (x + 0.5) (y + 0.5) 1
+    Mesh (x + 0.5) (y + 0.5) 1
     |> Opacity 1.0 0
     |> grid
     |> cross

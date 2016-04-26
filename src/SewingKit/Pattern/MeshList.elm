@@ -1,5 +1,5 @@
-module SewingKit.Pattern.SquareList
-  ( SquareList
+module SewingKit.Pattern.MeshList
+  ( MeshList
   , init
   , xs, ys, width, height, positions
   , minX, minY, maxX, maxY
@@ -9,19 +9,19 @@ module SewingKit.Pattern.SquareList
 
 import List.Extra exposing (replaceIf)
 
-import SewingKit.Pattern.Square as Square exposing (Position, Square)
+import SewingKit.Pattern.Mesh as Mesh exposing (Position, Mesh)
 
 (=>) = (,)
 
 (?) = flip Maybe.withDefault
 
 
-type alias SquareList content =
-  List (Square content)
+type alias MeshList content =
+  List (Mesh content)
 
 
 
-init : SquareList content
+init : MeshList content
 init =
   expand 5 4 []
 
@@ -31,11 +31,11 @@ init =
 type Action content
   = Expand Int Int
   | Shrink Int Int
-  | Modify Position (Square.Action content)
+  | Modify Position (Mesh.Action content)
   | NoOp
 
 
-update : Action content -> SquareList content -> SquareList content
+update : Action content -> MeshList content -> MeshList content
 update action sqrs =
   case action of
     Expand dx dy ->
@@ -46,14 +46,14 @@ update action sqrs =
 
     Modify pos sub ->
       let
-        updateSquare sqr =
-          if Square.position sqr == pos then
-            Square.update sub sqr
+        updateMesh sqr =
+          if Mesh.position sqr == pos then
+            Mesh.update sub sqr
           else
             sqr
 
       in
-        List.map updateSquare sqrs
+        List.map updateMesh sqrs
 
     NoOp ->
       sqrs
@@ -62,129 +62,129 @@ update action sqrs =
 
 -- position
 
-positions : SquareList content -> List Position
+positions : MeshList content -> List Position
 positions =
-  List.map Square.position
+  List.map Mesh.position
 
 
 -- x
 
-xs : SquareList content -> List Int
+xs : MeshList content -> List Int
 xs =
-  List.map Square.x
+  List.map Mesh.x
 
 
-maxX : SquareList content -> Maybe Int
+maxX : MeshList content -> Maybe Int
 maxX =
   xs >> List.maximum
 
 
-minX : SquareList content -> Maybe Int
+minX : MeshList content -> Maybe Int
 minX =
   xs >> List.minimum
 
 
-width : SquareList content -> Int
+width : MeshList content -> Int
 width sqrs =
   Maybe.map2 (\max min -> max - min + 1) (maxX sqrs) (minX sqrs) ? 0
 
 
 -- y
 
-ys : SquareList content -> List Int
+ys : MeshList content -> List Int
 ys =
-  List.map Square.y
+  List.map Mesh.y
 
 
-maxY : SquareList content -> Maybe Int
+maxY : MeshList content -> Maybe Int
 maxY =
   ys >> List.maximum
 
 
-minY : SquareList content -> Maybe Int
+minY : MeshList content -> Maybe Int
 minY =
   ys >> List.minimum
 
 
-height : SquareList content -> Int
+height : MeshList content -> Int
 height sqrs =
   Maybe.map2 (\max min -> max - min + 1) (maxY sqrs) (minY sqrs) ? 0
 
 
 -- expand & shrink
 
-expand : Int -> Int -> SquareList content -> SquareList content
+expand : Int -> Int -> MeshList content -> MeshList content
 expand dx dy sqrs =
   expandOnX dx sqrs
     |> expandOnY dy
 
 
-shrink : Int -> Int -> SquareList content -> SquareList content
+shrink : Int -> Int -> MeshList content -> MeshList content
 shrink dx dy sqrs =
   shrinkOnX dx sqrs
     |> shrinkOnY dy
 
 
-expandOnX : Int -> SquareList content -> SquareList content
+expandOnX : Int -> MeshList content -> MeshList content
 expandOnX dx sqrs =
   case ( compare dx 0, maxX sqrs, minX sqrs ) of
     ( GT, Just max, _ ) ->
-      List.map (Square.init <| max + 1) (ys sqrs) ++ sqrs
+      List.map (Mesh.init <| max + 1) (ys sqrs) ++ sqrs
         |> expandOnX (dx - 1)
 
     ( LT, _, Just min ) ->
-      List.map (Square.init <| min - 1) (ys sqrs) ++ sqrs
+      List.map (Mesh.init <| min - 1) (ys sqrs) ++ sqrs
         |> expandOnX (dx + 1)
 
     ( EQ, _, _ ) ->
       sqrs
 
     ( _, _, _ ) ->
-      expandOnX ( dx // (abs dx) * (abs dx - 1) ) [ Square.init 0 0 ]
+      expandOnX ( dx // (abs dx) * (abs dx - 1) ) [ Mesh.init 0 0 ]
 
 
-shrinkOnX : Int -> SquareList content -> SquareList content
+shrinkOnX : Int -> MeshList content -> MeshList content
 shrinkOnX dx sqrs =
   case ( compare dx 0, maxX sqrs, minX sqrs ) of
     ( GT, Just max, _ ) ->
-      List.filter (\sqr -> max /= Square.x sqr) sqrs
+      List.filter (\sqr -> max /= Mesh.x sqr) sqrs
         |> shrinkOnX (dx - 1)
 
     ( LT, _, Just min ) ->
-      List.filter (\sqr -> min /= Square.x sqr) sqrs
+      List.filter (\sqr -> min /= Mesh.x sqr) sqrs
         |> shrinkOnX (dx + 1)
 
     ( _, _, _ ) ->
       sqrs
 
 
-expandOnY : Int -> SquareList content -> SquareList content
+expandOnY : Int -> MeshList content -> MeshList content
 expandOnY dy sqrs =
   case ( compare dy 0, maxY sqrs, minY sqrs ) of
     ( GT, Just max, _ ) ->
-      List.map (flip Square.init <| max + 1) (xs sqrs) ++ sqrs
+      List.map (flip Mesh.init <| max + 1) (xs sqrs) ++ sqrs
         |> expandOnY (dy - 1)
 
     ( LT, _, Just min ) ->
-      List.map (flip Square.init <| min - 1) (xs sqrs) ++ sqrs
+      List.map (flip Mesh.init <| min - 1) (xs sqrs) ++ sqrs
         |> expandOnY (dy + 1)
 
     ( EQ, _, _ ) ->
       sqrs
 
     ( _, _, _ ) ->
-      expandOnY ( dy // (abs dy) * (abs dy - 1) ) [ Square.init 0 0 ]
+      expandOnY ( dy // (abs dy) * (abs dy - 1) ) [ Mesh.init 0 0 ]
 
 
-shrinkOnY : Int -> SquareList content -> SquareList content
+shrinkOnY : Int -> MeshList content -> MeshList content
 shrinkOnY dy sqrs =
   case ( compare dy 0 , maxY sqrs, minY sqrs ) of
     ( GT, Just max, _ ) ->
-      List.filter (\sqr -> max /= Square.y sqr) sqrs
+      List.filter (\sqr -> max /= Mesh.y sqr) sqrs
         |> shrinkOnY (dy - 1)
 
     ( LT, _, Just min ) ->
-      List.filter (\sqr -> min /= Square.y sqr) sqrs
+      List.filter (\sqr -> min /= Mesh.y sqr) sqrs
         |> shrinkOnY (dy + 1)
 
     ( _, _, _ ) ->

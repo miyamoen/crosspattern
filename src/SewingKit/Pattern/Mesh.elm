@@ -38,16 +38,16 @@ type Action content
 
 
 update : Action content -> Mesh content -> Mesh content
-update action sqr =
+update action msh =
   case action of
     Modify content ->
-      position sqr => Content content
+      position msh => Content content
 
     Empty ->
-      position sqr => NoContent
+      position msh => NoContent
 
     NoOp ->
-      sqr
+      msh
 
 
 -- Content
@@ -58,8 +58,8 @@ content =
 
 
 maybeContent : Mesh a -> Maybe a
-maybeContent sqr =
-  case content sqr of
+maybeContent msh =
+  case content msh of
     Content c ->
       Just c
 

@@ -36,27 +36,27 @@ type Action content
 
 
 update : Action content -> MeshList content -> MeshList content
-update action sqrs =
+update action mshs =
   case action of
     Expand dx dy ->
-      expand dx dy sqrs
+      expand dx dy mshs
 
     Shrink dx dy ->
-      shrink dx dy sqrs
+      shrink dx dy mshs
 
     Modify pos sub ->
       let
-        updateMesh sqr =
-          if Mesh.position sqr == pos then
-            Mesh.update sub sqr
+        updateMesh msh =
+          if Mesh.position msh == pos then
+            Mesh.update sub msh
           else
-            sqr
+            msh
 
       in
-        List.map updateMesh sqrs
+        List.map updateMesh mshs
 
     NoOp ->
-      sqrs
+      mshs
 
 
 
@@ -85,8 +85,8 @@ minX =
 
 
 width : MeshList content -> Int
-width sqrs =
-  Maybe.map2 (\max min -> max - min + 1) (maxX sqrs) (minX sqrs) ? 0
+width mshs =
+  Maybe.map2 (\max min -> max - min + 1) (maxX mshs) (minX mshs) ? 0
 
 
 -- y
@@ -107,87 +107,96 @@ minY =
 
 
 height : MeshList content -> Int
-height sqrs =
-  Maybe.map2 (\max min -> max - min + 1) (maxY sqrs) (minY sqrs) ? 0
+height mshs =
+  Maybe.map2 (\max min -> max - min + 1) (maxY mshs) (minY mshs) ? 0
 
 
 -- expand & shrink
 
 expand : Int -> Int -> MeshList content -> MeshList content
-expand dx dy sqrs =
-  expandOnX dx sqrs
+expand dx dy mshs =
+  expandOnX dx mshs
     |> expandOnY dy
 
 
 shrink : Int -> Int -> MeshList content -> MeshList content
-shrink dx dy sqrs =
-  shrinkOnX dx sqrs
+shrink dx dy mshs =
+  shrinkOnX dx mshs
     |> shrinkOnY dy
 
 
 expandOnX : Int -> MeshList content -> MeshList content
-expandOnX dx sqrs =
-  case ( compare dx 0, maxX sqrs, minX sqrs ) of
+expandOnX dx mshs =
+  case ( compare dx 0, maxX mshs, minX mshs ) of
     ( GT, Just max, _ ) ->
-      List.map (Mesh.init <| max + 1) (ys sqrs) ++ sqrs
+      List.map (Mesh.init <| max + 1) (ys mshs) ++ mshs
         |> expandOnX (dx - 1)
 
     ( LT, _, Just min ) ->
-      List.map (Mesh.init <| min - 1) (ys sqrs) ++ sqrs
+      List.map (Mesh.init <| min - 1) (ys mshs) ++ mshs
         |> expandOnX (dx + 1)
 
     ( EQ, _, _ ) ->
-      sqrs
+      mshs
 
     ( _, _, _ ) ->
       expandOnX ( dx // (abs dx) * (abs dx - 1) ) [ Mesh.init 0 0 ]
 
 
 shrinkOnX : Int -> MeshList content -> MeshList content
-shrinkOnX dx sqrs =
-  case ( compare dx 0, maxX sqrs, minX sqrs ) of
+shrinkOnX dx mshs =
+  case ( compare dx 0, maxX mshs, minX mshs ) of
     ( GT, Just max, _ ) ->
-      List.filter (\sqr -> max /= Mesh.x sqr) sqrs
+      List.filter (\msh -> max /= Mesh.x msh) mshs
         |> shrinkOnX (dx - 1)
 
     ( LT, _, Just min ) ->
-      List.filter (\sqr -> min /= Mesh.x sqr) sqrs
+      List.filter (\msh -> min /= Mesh.x msh) mshs
         |> shrinkOnX (dx + 1)
 
     ( _, _, _ ) ->
-      sqrs
+      mshs
 
 
 expandOnY : Int -> MeshList content -> MeshList content
-expandOnY dy sqrs =
-  case ( compare dy 0, maxY sqrs, minY sqrs ) of
+expandOnY dy mshs =
+  case ( compare dy 0, maxY mshs, minY mshs ) of
     ( GT, Just max, _ ) ->
-      List.map (flip Mesh.init <| max + 1) (xs sqrs) ++ sqrs
+      List.map (flip Mesh.init <| max + 1) (xs mshs) ++ mshs
         |> expandOnY (dy - 1)
 
     ( LT, _, Just min ) ->
-      List.map (flip Mesh.init <| min - 1) (xs sqrs) ++ sqrs
+      List.map (flip Mesh.init <| min - 1) (xs mshs) ++ mshs
         |> expandOnY (dy + 1)
 
     ( EQ, _, _ ) ->
-      sqrs
+      mshs
 
     ( _, _, _ ) ->
       expandOnY ( dy // (abs dy) * (abs dy - 1) ) [ Mesh.init 0 0 ]
 
 
 shrinkOnY : Int -> MeshList content -> MeshList content
-shrinkOnY dy sqrs =
-  case ( compare dy 0 , maxY sqrs, minY sqrs ) of
+shrinkOnY dy mshs =
+  case ( compare dy 0 , maxY mshs, minY mshs ) of
     ( GT, Just max, _ ) ->
-      List.filter (\sqr -> max /= Mesh.y sqr) sqrs
+      List.filter (\msh -> max /= Mesh.y msh) mshs
         |> shrinkOnY (dy - 1)
 
     ( LT, _, Just min ) ->
-      List.filter (\sqr -> min /= Mesh.y sqr) sqrs
+      List.filter (\msh -> min /= Mesh.y msh) mshs
         |> shrinkOnY (dy + 1)
 
     ( _, _, _ ) ->
-      sqrs
+      mshs
 
 
+gridElement : MeshList content -> Element
+gridElement mshs =
+  let
+    w = width mshs
+    h = height mshs
+    x = minX mshs ? 0
+    y = minY mshs ? 0
+  in
+    Grid 1 w h x y

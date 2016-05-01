@@ -64,6 +64,7 @@ type Element
   | BackSlash Float Float Float
   | XCross Float Float Float
   | Cross Float Float Float
+  | Grid Float Int Int Float Float
   | Polygon (List (Float, Float))
   | Clickable Signal.Message Element
   | Fill Color Element
@@ -107,6 +108,9 @@ toSvg attributes elm =
 
     Cross x y w ->
       cross x y w attributes
+
+    Grid stride w h x y ->
+      grid stride w h x y attributes
 
     Polygon points ->
       polygon points attributes
@@ -244,6 +248,25 @@ cross cx cy width attributes =
     hLine = [ (cx - width / 2) => cy, (cx + width / 2) => cy ]
   in
     g [] [ line vLine attributes, line hLine attributes ]
+
+
+---- Grid
+
+grid : Float -> Int -> Int -> Float -> Float -> List Attribute -> Svg
+grid stride w h x y attributes =
+  let
+    height = toString <| y + stride * (toFloat h)
+    vs = List.map (\dx -> (toFloat dx) * stride + x) [0..w]
+      |> List.map toString
+      |> List.map (\x' -> "M " ++ x' ++ " 0, v " ++ height)
+
+    width = toString <| x + stride * (toFloat w)
+    hs = List.map (\dy -> (toFloat dy) * stride + y) [0..h]
+      |> List.map toString
+      |> List.map (\y' -> "M 0 " ++ y' ++ ", h " ++ width)
+
+  in
+    path (d (String.join " " (vs ++ hs)) :: attributes) []
 
 
 ---- Polygon

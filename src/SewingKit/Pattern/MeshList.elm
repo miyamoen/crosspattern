@@ -5,10 +5,12 @@ module SewingKit.Pattern.MeshList
   , minX, minY, maxX, maxY
   , expand, shrink
   , Action(..), update
+  , gridElement
   ) where
 
 import List.Extra exposing (replaceIf)
 
+import SewingKit.Svg exposing (Element(..))
 import SewingKit.Pattern.Mesh as Mesh exposing (Position, Mesh)
 
 (=>) = (,)
@@ -196,7 +198,9 @@ gridElement mshs =
   let
     w = width mshs
     h = height mshs
-    x = minX mshs ? 0
-    y = minY mshs ? 0
+    x = minX mshs ? 0 |> toFloat
+    y = minY mshs ? 0 |> toFloat
   in
-    Grid 1 w h x y
+    Grid 1.0 w h x y
+    |> LineStyle Color.black 0.02
+    |> DashStyle [ 0.1, 0.1 ] -0.05

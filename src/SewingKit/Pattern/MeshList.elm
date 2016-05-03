@@ -26,7 +26,7 @@ type alias MeshList content =
 
 init : MeshList content
 init =
-  expand 5 4 []
+  expand 10 9 []
 
 
 -- Action

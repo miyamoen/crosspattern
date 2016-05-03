@@ -9,8 +9,9 @@ module SewingKit.Pattern.MeshList
   ) where
 
 import List.Extra exposing (replaceIf)
+import Color
 
-import SewingKit.Svg exposing (Element(..))
+import SewingKit.Svg exposing (Element(..), Cap(..), Join(..))
 import SewingKit.Pattern.Mesh as Mesh exposing (Position, Mesh)
 
 (=>) = (,)
@@ -202,5 +203,7 @@ gridElement mshs =
     y = minY mshs ? 0 |> toFloat
   in
     Grid 1.0 w h x y
-    |> LineStyle Color.black 0.02
+    |> LineStyle Color.blue 0.08
+    |> Opacity 0.3 0.5
+    |> LineCap RoundCap
     |> DashStyle [ 0.1, 0.1 ] -0.05

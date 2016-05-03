@@ -22,7 +22,6 @@ import SewingKit.Pattern.Mesh as Mesh
 (?.) = flip Maybe.map
 
 
-
 type alias StitchList =
   StitchList.Model
 
@@ -35,12 +34,20 @@ type alias MeshList =
   MeshList.MeshList StitchId
 
 
+type alias MeshListAction =
+  MeshList.Action StitchId
+
+
 type alias Mesh =
   Mesh.Mesh StitchId
 
 
+type alias MeshAction =
+  Mesh.Action StitchId
+
+
 type alias Model =
-  { patternZipper : Zipper Pattern
+  { zipper : Zipper Pattern
   , holding : Holding
   , hasGrid : Bool
   }
@@ -63,7 +70,7 @@ type Holding
 
 init : Model
 init =
-  { patternZipper =
+  { zipper =
     ( Tree ( Root MeshList.init StitchList.init ) [], [] )
   , holding = HStitch 0
   , hasGrid = True
@@ -73,7 +80,7 @@ init =
 type Action
   = GoToRoot
   | ModifyStitchList StitchList.Action
-  | ModifyMeshList (MeshList.Action StitchId)
+  | ModifyMeshList MeshListAction
   | HoldStitch Int
   --| HoldStamp Int Stamp
   | Unhold
@@ -85,7 +92,7 @@ update : Action -> Model -> Model
 update action model =
   case action of
     GoToRoot ->
-      { model | patternZipper = goToRoot model.patternZipper }
+      { model | zipper = goToRoot model.zipper }
 
     ModifyStitchList sub ->
       updateStitchList sub model
@@ -115,34 +122,34 @@ updateStitchList action model =
   let
     updatePattern p =
       case p of
-        Root sqrs stchs ->
-          Root sqrs (StitchList.update action stchs)
+        Root mshs stchs ->
+          Root mshs (StitchList.update action stchs)
 
-        Node id sqrs stchs ->
-          Node id sqrs (StitchList.update action stchs)
+        Node id mshs stchs ->
+          Node id mshs (StitchList.update action stchs)
 
   in
-    { model | patternZipper
-      = Zipper.updateDatum updatePattern model.patternZipper
-      ? model.patternZipper
+    { model | zipper
+      = Zipper.updateDatum updatePattern model.zipper
+      ? model.zipper
     }
 
 
-updateMeshList : MeshList.Action StitchId -> Model -> Model
+updateMeshList : MeshListAction -> Model -> Model
 updateMeshList action model =
   let
     updatePattern p =
       case p of
-        Root sqrs stchs ->
-          Root (MeshList.update action sqrs) stchs
+        Root mshs stchs ->
+          Root (MeshList.update action mshs) stchs
 
-        Node id sqrs stchs ->
-          Node id (MeshList.update action sqrs) stchs
+        Node id mshs stchs ->
+          Node id (MeshList.update action mshs) stchs
 
   in
-    { model | patternZipper
-      = Zipper.updateDatum updatePattern model.patternZipper
-      ? model.patternZipper
+    { model | zipper
+      = Zipper.updateDatum updatePattern model.zipper
+      ? model.zipper
     }
 
 
@@ -163,8 +170,8 @@ stitchList zipper =
       s
 
 
-stitchById : StitchId -> Zipper Pattern -> Maybe Stitch
-stitchById sid zipper =
+stitchById : Zipper Pattern -> StitchId -> Maybe Stitch
+stitchById zipper sid =
   case sid of
     Id id ->
       StitchList.stitch id (stitchList zipper)
@@ -173,17 +180,17 @@ stitchById sid zipper =
     --  Nothing
     ChildId id sid' ->
       goToChild id zipper
-      ?> stitchById sid'
+      ?> (flip stitchById) sid'
 
 
 meshList : Zipper Pattern -> MeshList
 meshList zipper =
   case pattern zipper of
-    Root s _ ->
-      s
+    Root m _ ->
+      m
 
-    Node _ s _ ->
-      s
+    Node _ m _ ->
+      m
 
 
 -- Pattern Zipper
@@ -223,85 +230,98 @@ view address model =
   ]
   [ viewMeshs model
     (forwardTo address ModifyMeshList)
-    (meshList <| goToRoot model.patternZipper)
+    (meshList <| goToRoot model.zipper)
   , gridButton address model
   , holdPanel address model
   , StitchList.view
     (forwardTo address ModifyStitchList)
-    (stitchList <| goToRoot model.patternZipper)
+    (stitchList <| goToRoot model.zipper)
   ]
 
 
 
 -- Mesh View
 
-viewMeshs : Model -> Address (MeshList.Action StitchId) -> MeshList -> Html
-viewMeshs model address sqrs =
+viewMeshs : Model -> Address MeshListAction -> MeshList -> Html
+viewMeshs model address mshs =
   let
-    svg =
-      MeshList.positions sqrs
+    grid elms =
+      if model.hasGrid
+        then
+          Group (MeshList.gridElement mshs :: elms)
+
+        else
+          Group elms
+
+    mads : List (Address MeshAction)
+    mads =
+      MeshList.positions mshs
       |> List.map (forwardTo address << MeshList.Modify)
-      |> List.map2 (flip <| meshElement model) sqrs
-      |> Group
+
+
+    msgs : List Message
+    msgs =
+      List.map2 (meshMessage model.holding) mads mshs
+
+    maybeStitches : List (Maybe Stitch)
+    maybeStitches =
+      List.map Mesh.maybeContent mshs
+      |> List.map (\msid -> msid ?> stitchById model.zipper)
+
+    svg =
+      List.map2 meshElement maybeStitches mshs
+      |> List.map2 Clickable msgs
+      |> grid
       |> MySvg.toSvg []
 
 
     attrs =
     [ viewBox
-      ((MeshList.minX sqrs ? 0) - 2 |> toFloat)
-      ((MeshList.minY sqrs ? 0) - 2 |> toFloat)
-      (MeshList.width sqrs + 4 |> toFloat)
-      (MeshList.height sqrs + 4 |> toFloat)
+      ((MeshList.minX mshs ? 0) - 2 |> toFloat)
+      ((MeshList.minY mshs ? 0) - 2 |> toFloat)
+      (MeshList.width mshs + 4 |> toFloat)
+      (MeshList.height mshs + 4 |> toFloat)
     , MySvg.width 500
     , MySvg.height 500
     ]
+
   in
     div
     [ style [] ]
     [ Svg.svg attrs [ svg ] ]
 
 
-meshElement : Model -> Address (Mesh.Action StitchId) -> Mesh -> Element
-meshElement model address sqr =
+meshElement : Maybe Stitch -> Mesh -> Element
+meshElement maybeStitch msh =
   let
-    x = Mesh.x sqr |> toFloat
-    y = Mesh.y sqr |> toFloat
-    root = goToRoot model.patternZipper
+    x = Mesh.x msh |> toFloat
+    y = Mesh.y msh |> toFloat
 
-    cross elm =
-      Mesh.maybeContent sqr
-      ?> (flip stitchById) root
+    cross sqr =
+      maybeStitch
       ?. Stitch.element (x + 0.5) (y + 0.5)
-      ?. (\sElm -> Group [ elm, sElm ])
-      ? Group [ elm ]
-
-    grid elm =
-      if model.hasGrid then
-        LineStyle Color.black 0.02 elm
-          |> DashStyle [ 0.1, 0.1 ] -0.05
-
-      else
-        elm
-
-    action =
-      case model.holding of
-        HStitch id ->
-          if Mesh.maybeContent sqr ?. (/=) (Id id) ? True then
-            Mesh.Modify (Id id)
-
-          else
-            Mesh.Empty
-
-        HNothing ->
-          Mesh.Empty
-
+      ?. (\cross -> Group [ sqr, cross ])
+      ? Group [ sqr ]
 
   in
-    Mesh (x + 0.5) (y + 0.5) 1
+    Square (x + 0.5) (y + 0.5) 1
     |> Opacity 1.0 0
-    |> grid
     |> cross
-    |> Clickable (message address action)
+
+
+meshMessage : Holding -> Address MeshAction -> Mesh -> Message
+meshMessage holding address msh =
+  (case holding of
+    HStitch id ->
+      if Mesh.maybeContent msh ?. (/=) (Id id) ? True then
+        Mesh.Modify (Id id)
+
+      else
+        Mesh.Empty
+
+    HNothing ->
+      Mesh.Empty
+  ) |> message address
 
 
 -- Holding View
@@ -310,7 +330,7 @@ meshElement model address sqr =
 holdPanel : Address Action -> Model -> Html
 holdPanel address model =
   let
-    stitches = stitchList <| goToRoot model.patternZipper
+    stitches = stitchList <| goToRoot model.zipper
 
   in
     div

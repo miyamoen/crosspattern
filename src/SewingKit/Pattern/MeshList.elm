@@ -8,7 +8,7 @@ module SewingKit.Pattern.MeshList
   , gridElement
   ) where
 
-import List.Extra exposing (replaceIf)
+import List.Extra exposing (replaceIf, dropDuplicates)
 import Color
 
 import SewingKit.Svg exposing (Element(..), Cap(..), Join(..))
@@ -74,7 +74,7 @@ positions =
 
 xs : MeshList content -> List Int
 xs =
-  List.map Mesh.x
+  List.map Mesh.x >> dropDuplicates
 
 
 maxX : MeshList content -> Maybe Int
@@ -96,7 +96,7 @@ width mshs =
 
 ys : MeshList content -> List Int
 ys =
-  List.map Mesh.y
+  List.map Mesh.y >> dropDuplicates
 
 
 maxY : MeshList content -> Maybe Int

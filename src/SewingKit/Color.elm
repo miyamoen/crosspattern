@@ -1,8 +1,8 @@
-module SewingKit.Color
+module SewingKit.Color exposing
   ( Model(..), HSL(..)
   , color, state, fromColor, toRecord, init, init', toString'
-  , Action, view, update
-  ) where
+  , Msg, view, update
+  )
 
 import Signal exposing (Address, Message, forwardTo, message)
 import Html exposing (..)
@@ -10,8 +10,8 @@ import Html.Attributes as Attributes exposing (style)
 import Html.Events exposing (on, targetValue, onClick)
 import String
 import Color exposing (Color)
-import SewingKit.Svg exposing (..)
 import List.Extra exposing (lift2, zip)
+import Color.Convert exposing (colorToCssHsl)
 
 
 (=>) = (,)
@@ -73,8 +73,8 @@ toString' =
   SewingKit.Svg.toCss << color
 
 
-----------Action----------
-type Action
+----------Msg----------
+type Msg
   = Input Float Float Float
   | InputColor Color
   | Pop
@@ -83,7 +83,7 @@ type Action
 
 
 ----------Update----------
-update : Action -> Model -> Model
+update : Msg -> Model -> Model
 update action model =
   let
     hsl = toRecord model
@@ -107,7 +107,7 @@ update action model =
 
 ----------View----------
 
-view : Address Action -> Model -> Html
+view : Address Msg -> Model -> Html
 view address model =
   div
   [ style
@@ -133,7 +133,7 @@ view address model =
   )
 
 
-opaqueLayer : Address Action -> Html
+opaqueLayer : Address Msg -> Html
 opaqueLayer address =
   div
   [ onClick address Unpop
@@ -151,7 +151,7 @@ opaqueLayer address =
   []
 
 
-pickerAndInput : Address Action -> Color -> Html
+pickerAndInput : Address Msg -> Color -> Html
 pickerAndInput address color =
   div
   [ style
@@ -168,7 +168,7 @@ pickerAndInput address color =
   ]
 
 
-console : Address Action -> Color -> Html
+console : Address Msg -> Color -> Html
 console address clr =
   div
   [ style
@@ -182,12 +182,12 @@ console address clr =
   ]
 
 
-consolePanel : Address Action -> Color -> Html
+consolePanel : Address Msg -> Color -> Html
 consolePanel address clr =
   div[][]
 
 
-inputs : Address Action -> Color -> Html
+inputs : Address Msg -> Color -> Html
 inputs address clr =
   div
   [ style
@@ -202,7 +202,7 @@ inputs address clr =
   ]
 
 
-input : Address Action -> HSL -> Color -> Html
+input : Address Msg -> HSL -> Color -> Html
 input address hsl clr =
   let
     val =
@@ -252,7 +252,7 @@ inputStyle =
   ]
 
 
-onBlur : Address Action -> HSL -> Color -> Attribute
+onBlur : Address Msg -> HSL -> Color -> Attribute
 onBlur address hsl clr =
   let
     r = Color.toHsl clr
@@ -280,7 +280,7 @@ onBlur address hsl clr =
 
 ----------Svg Element----------
 
-picker : Address Action -> Color -> Html
+picker : Address Msg -> Color -> Html
 picker address clr =
   Group
   [ circleByHue address clr
@@ -289,7 +289,7 @@ picker address clr =
   |> toHtml 20 20 200 200 []
 
 
-squareBySL : Address Action -> Color -> Element
+squareBySL : Address Msg -> Color -> Element
 squareBySL address clr =
   let
     h = Color.toHsl clr |> .hue
@@ -307,14 +307,14 @@ squareBySL address clr =
       |> Group
 
 
-square : Address Action -> Color -> Float -> Float -> Float -> Element
+square : Address Msg -> Color -> Float -> Float -> Float -> Element
 square address clr x y w =
   Square x y w
     |> Fill clr
     |> Clickable (message address <| InputColor clr)
 
 
-circleByHue : Address Action -> Color -> Element
+circleByHue : Address Msg -> Color -> Element
 circleByHue address clr =
   let
     steps = 24
@@ -331,7 +331,7 @@ circleByHue address clr =
     Group (sectors ++ [ inside ])
 
 
-sector : Address Action -> Color -> Float -> Float -> Float -> Element
+sector : Address Msg -> Color -> Float -> Float -> Float -> Element
 sector address clr r s e =
   let
     rec = Color.toHsl clr

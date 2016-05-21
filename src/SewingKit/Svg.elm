@@ -1,10 +1,10 @@
-module SewingKit.Svg
-  ( toCss, svgOnCenter
+module SewingKit.Svg exposing
+  ( svgOnCenter
   , viewBox, width, height
   , Element(..), toSvg, toHtml
   , sector, circle, square, line, slash, backSlash, xCross, cross
   , Cap(..), Join(..)
-  ) where
+  )
 
 import Color exposing (Color)
 import Svg exposing (Svg, Attribute, path, rect, polyline, g)
@@ -16,73 +16,90 @@ import Svg.Attributes as Attributes exposing ( d, x, y, r, points
 import Svg.Events exposing (onClick)
 import Html exposing (Html)
 import String
-import Native.MySvg
+import Color.Convert exposing (colorToCssHsl)
 
 (=>) = (,)
 
-toCss : Color -> String
-toCss =
-  Native.MySvg.toCss
-
-
 ---- Attributes
 
-viewBox : Float -> Float -> Float -> Float -> Attribute
+viewBox : Float -> Float -> Float -> Float -> Attribute msg
 viewBox x y w h =
   String.join " " [ toString x, toString y, toString w, toString h ]
     |> Attributes.viewBox
 
 
-width : Float -> Attribute
+width : Float -> Attribute msg
 width w =
   Attributes.width (toString w ++ "px")
 
 
-height : Float -> Attribute
+height : Float -> Attribute msg
 height h =
   Attributes.height (toString h ++ "px")
 
 
-svgOnCenter : Float -> Float -> Float -> Float -> List Html.Attribute -> List Svg -> Html
-svgOnCenter vw vh w h attributes svgs =
+svgOnCenter : Float -> Float -> List (Html.Attribute msg) -> List (Svg msg) -> Html msg
+svgOnCenter vw vh attributes svgs =
   Svg.svg
-  ([ viewBox (vw / -2) (vh / -2) vw vh
-  , width w
-  , height h
-  ] ++ attributes )
+  ( viewBox (vw / -2) (vh / -2) vw vh :: attributes )
   svgs
 
 
 -- Element
 
-type Element
-  = Sector Float Float Float Float Float
-  | Circle Float Float Float
-  | Square Float Float Float
-  | Line (List (Float, Float))
-  | Slash Float Float Float
-  | BackSlash Float Float Float
-  | XCross Float Float Float
-  | Cross Float Float Float
-  | Grid Float Int Int Float Float
-  | Polygon (List (Float, Float))
-  | Clickable Signal.Message Element
-  | Fill Color Element
-  | LineCap Cap Element
-  | LineJoin Join Element
-  | LineStyle Color Float Element
-  | DashStyle (List Float) Float Element
-  | Opacity Float Float Element
-  | Move Float Float Element
-  | Group (List Element)
+type Element msg
+  = Sector Point Point Length Degree Degree
+  | Circle Point Point Length
+  | Square Point Point Length
+  | Line (List (Point, Point))
+  | Slash Point Point Length
+  | BackSlash Point Point Length
+  | XCross Point Point Length
+  | Cross Point Point Length
+  | Grid Length Count Count Point Point
+  | Polygon (List (Point, Point))
+  | Clickable msg (Element msg)
+  | Fill Color (Element msg)
+  | LineCap Cap (Element msg)
+  | LineJoin Join (Element msg)
+  | LineStyle Color Thickness (Element msg)
+  | DashStyle (List Length) Offset (Element msg)
+  | Opacity Float Float (Element msg)
+  | Group (List (Element msg))
 
 
-toHtml : Float -> Float -> Float -> Float -> List Html.Attribute -> Element -> Html
-toHtml vw vh w h attributes elm =
-  [ toSvg [] elm ] |> svgOnCenter vw vh w h attributes
+type alias Point =
+  Float
+  
+  
+type alias Length =
+  Float
+  
+type alias Offset =
+  Float
+
+  
+type alias Degree =
+  Float
+  
+
+type alias Count =
+  Int
+  
+type alias Step =
+  Float
+  
+
+type alias Thickness =
+  Float
 
 
-toSvg : List Attribute -> Element -> Svg
+toHtml : Float -> Float -> List (Attribute msg) -> Element msg -> Html msg
+toHtml vw vh attributes elm =
+  svgOnCenter vw vh attributes [ toSvg [] elm ]
+
+
+toSvg : List (Attribute msg) -> Element msg -> Svg msg
 toSvg attributes elm =
   case elm of
     Sector x y r s e ->
@@ -109,8 +126,8 @@ toSvg attributes elm =
     Cross x y w ->
       cross x y w attributes
 
-    Grid stride w h x y ->
-      grid stride w h x y attributes
+    Grid step w h x y ->
+      grid step w h x y attributes
 
     Polygon points ->
       polygon points attributes
@@ -119,7 +136,7 @@ toSvg attributes elm =
       toSvg (onClick message :: attributes) elm
 
     Fill color elm ->
-      toSvg (Attributes.fill (toCss color) :: attributes) elm
+      toSvg (Attributes.fill (colorToCssHsl color) :: attributes) elm
 
     LineCap cap elm ->
       toSvg (lineCap cap ++ attributes ) elm
@@ -136,9 +153,6 @@ toSvg attributes elm =
     Opacity stroke fill elm ->
       toSvg (opacity stroke fill ++ attributes) elm
 
-    Move tx ty elm ->
-      toSvg (move tx ty :: attributes) elm
-
     Group elms ->
       List.map (toSvg []) elms
         |> g attributes
@@ -148,7 +162,7 @@ toSvg attributes elm =
 
 ---- Sector
 
-sector : Float -> Float -> Float -> Float -> Float -> List Attribute -> Svg
+sector : Point -> Point -> Length -> Degree -> Degree -> List (Attribute msg) -> Svg msg
 sector cx cy radius start end attributes =
   let
     toX = \deg ->      radius * sin (degrees deg) + cx |> toString
@@ -168,7 +182,7 @@ sector cx cy radius start end attributes =
 
 ---- Circle
 
-circle : Float -> Float -> Float -> List Attribute -> Svg
+circle : Point -> Point -> Length -> List (Attribute msg) -> Svg msg
 circle cx cy radius attributes =
   let attrs =
     [ Attributes.cx (toString cx)
@@ -181,7 +195,7 @@ circle cx cy radius attributes =
 
 ---- Square
 
-square : Float -> Float -> Float -> List Attribute -> Svg
+square : Point -> Point -> Length -> List (Attribute msg) -> Svg msg
 square cx cy w attributes =
   let attrs =
     [ x (cx - w / 2 |> toString)
@@ -195,7 +209,7 @@ square cx cy w attributes =
 
 ---- Line
 
-line : List (Float, Float) -> List Attribute -> Svg
+line : List (Point, Point) -> List (Attribute msg) -> Svg msg
 line points attributes =
   let
     attr = points
@@ -208,7 +222,7 @@ line points attributes =
 
 ---- Slash
 
-slash : Float -> Float -> Float -> List Attribute -> Svg
+slash : Point -> Point -> Length -> List (Attribute msg) -> Svg msg
 slash cx cy width attributes =
   line
     [ (cx - width / 2) => (cy + width / 2)
@@ -219,7 +233,7 @@ slash cx cy width attributes =
 
 ---- Back Slash
 
-backSlash : Float -> Float -> Float -> List Attribute -> Svg
+backSlash : Point -> Point -> Length -> List (Attribute msg) -> Svg msg
 backSlash cx cy width attributes =
   line
     [ (cx - width / 2) => (cy - width / 2)
@@ -230,7 +244,7 @@ backSlash cx cy width attributes =
 
 ---- X Cross
 
-xCross : Float -> Float -> Float -> List Attribute -> Svg
+xCross : Point -> Point -> Length -> List (Attribute msg) -> Svg msg
 xCross cx cy width attributes =
   let
     slash' = slash cx cy width attributes
@@ -241,7 +255,7 @@ xCross cx cy width attributes =
 
 ---- Cross
 
-cross : Float -> Float -> Float -> List Attribute -> Svg
+cross : Point -> Point -> Length -> List (Attribute msg) -> Svg msg
 cross cx cy width attributes =
   let
     vLine = [ cx => (cy - width / 2), cx => (cy + width / 2) ]
@@ -252,26 +266,30 @@ cross cx cy width attributes =
 
 ---- Grid
 
-grid : Float -> Int -> Int -> Float -> Float -> List Attribute -> Svg
-grid stride w h x y attributes =
+grid : Length -> Count -> Count -> Point -> Point -> List (Attribute msg) -> Svg msg
+grid step xCount yCount x y attributes =
   let
-    height = toString <| y + stride * (toFloat h)
-    vs = List.map (\dx -> (toFloat dx) * stride + x) [0..w]
-      |> List.map toString
-      |> List.map (\x' -> "M " ++ x' ++ " 0, v " ++ height)
-
-    width = toString <| x + stride * (toFloat w)
-    hs = List.map (\dy -> (toFloat dy) * stride + y) [0..h]
-      |> List.map toString
-      |> List.map (\y' -> "M 0 " ++ y' ++ ", h " ++ width)
-
+    xy = toString x ++ ", " ++ toString y
+    height = step * (toFloat yCount)
+    width = step * (toFloat xCount)
+    
+    vlines =
+      (++) ("M " ++ xy ++ "　v " ++ toString height)
+      <| String.repeat xCount
+      <| " m " ++ toString step ++ ", " ++ toString -height
+   
+    
+    hlines =
+      (++) ("M " ++ xy ++ "　h " ++ toString width)
+      <| String.repeat yCount
+      <| " m " ++ toString -width ++ ", " ++ toString step
   in
-    path (d (String.join " " (vs ++ hs)) :: attributes) []
+    path (d ( vlines ++ " " ++ hlines) :: attributes) []
 
 
 ---- Polygon
 
-polygon : List (Float, Float) -> List Attribute -> Svg
+polygon : List (Point, Point) -> List (Attribute msg) -> Svg msg
 polygon points attributes =
   let
     attr = points
@@ -286,7 +304,7 @@ polygon points attributes =
 
 type Cap = ButtCap | RoundCap | SquareCap
 
-lineCap : Cap -> List Attribute
+lineCap : Cap -> List (Attribute msg)
 lineCap cap =
   let
     param = case cap of
@@ -300,7 +318,7 @@ lineCap cap =
 type Join = MiterJoin Float | RoundJoin | BevelJoin
 
 
-lineJoin : Join -> List Attribute
+lineJoin : Join -> List (Attribute msg)
 lineJoin join =
   case join of
     MiterJoin limit ->
@@ -313,12 +331,12 @@ lineJoin join =
       [ strokeLinejoin "bevel" ]
 
 
-lineStyle : Color -> Float -> List Attribute
+lineStyle : Color -> Thickness -> List (Attribute msg)
 lineStyle c w =
-  [ stroke <| toCss c, strokeWidth <| toString w ]
+  [ stroke <| colorToCssHsl c, strokeWidth <| toString w ]
 
 
-dashStyle : List Float -> Float -> List Attribute
+dashStyle : List Length -> Offset -> List (Attribute msg)
 dashStyle pattern offset =
   let
     ps = List.map toString pattern
@@ -326,12 +344,8 @@ dashStyle pattern offset =
   in
     [ strokeDashoffset <| toString offset, strokeDasharray ps ]
 
-opacity : Float -> Float -> List Attribute
+opacity : Float -> Float -> List (Attribute msg)
 opacity stroke fill =
   [ strokeOpacity <| toString stroke, fillOpacity <| toString fill ]
 
 
-move : Float -> Float -> Attribute
-move tx ty =
-  String.concat [ "translate(", toString tx, ",", toString ty, ")" ]
-    |> transform
